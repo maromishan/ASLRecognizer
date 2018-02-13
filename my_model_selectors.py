@@ -106,4 +106,39 @@ class SelectorCV(ModelSelector):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # TODO implement model selection using CV
-        raise NotImplementedError
+        scores_array = []
+        #num_hidden_states = self.num_hidden_states
+
+
+        split_method = KFold()
+
+        for n in range(self.min_n_components, self.max_n_components):
+            sum_logLs = 0
+
+
+
+            try:
+                for cv_train_idx, cv_test_idx in split_method.split(self.sequences):
+                    #print("Train fold indices:{} Test fold indices:{}".format(cv_train_idx, cv_test_idx))  # view indices of the folds
+                    trainset_x, trainset_lengths = combine_sequences(cv_train_idx, self.sequences)
+                    testset_x, testset_lengths = combine_sequences(cv_test_idx,self.sequences)
+
+                    model = GaussianHMM(n_components=n, n_iter=1000, random_state = self.random_state).fit(trainset_x, trainset_lengths)
+                    logL = model.score(testset_x, testset_lengths)
+                    sum_logLs += logL
+            except ValueError:
+                print("Value error encountered")
+
+            #assuming that model only works with default number of folds in kfolds (default = 3) as used in my implementation
+            avg_logLs = sum_logLs/3
+            scores_array.append((avg_logLs, n))
+
+
+        #Choose optimal number of hidden states i.e., highest average log likelihood
+        best_model = float('-inf')
+        best_n = 0
+        for i in scores_array:
+            if i[0] > best_model:
+                best_model = i[0]
+                best_n = i[1]
+        return self.base_model(best_n)
